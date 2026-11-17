@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#050507">
+  <title>UNBIUNIUM: Element 121 Air Combat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Yuji+Boku&family=Shippori+Mincho:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="game"></div>
+  <canvas id="hud"></canvas>
+  <div id="fps"></div>
+
+  <!-- Hangar backdrop (js/hangar.js), shared by the loading screen and the main menu -->
+  <div id="backdrop" class="show">
+    <canvas id="load-bg"></canvas>
+    <div class="load-shade"></div>
+    <div class="load-grain"></div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading" class="screen show">
+    <div class="load-title">
+      <div class="kanji">鋼翼</div>
+      <div class="seal">
+        <span class="seal-a">ウンビウニウム</span>
+        <span class="seal-b">第百二十一元素</span>
+      </div>
+    </div>
+    <div class="load-en">UNBIUNIUM <span>· ELEMENT 121 · AIR COMBAT</span></div>
+    <div class="load-status">
+      <div class="load-row">
+        <span id="load-jp" class="load-jp">読み込み中</span>
+        <span id="load-pct" class="load-pct">0%</span>
+      </div>
+      <div id="load-text">Loading engine…</div>
+      <div class="bar"><div id="load-bar"></div></div>
+    </div>
+    <div class="load-tip"><span class="tip-k">心得</span><span id="load-tip">Lead your target: aim at the red circle, not the aircraft.</span></div>
+    <div class="load-keys">
+      <span><kbd>Z</kbd> ブースト BOOST</span><span><kbd>G</kbd> 反転 U-TURN</span><span><kbd>H</kbd> 浮遊 HOVER</span><span><kbd>1–9</kbd> 機体 JETS</span>
+    </div>
+  </div>
+
+  <!-- Main menu (same look as the loading screen) -->
+  <div id="screen-main" class="screen jp-menu">
+    <div class="load-title">
+      <div class="kanji">鋼翼</div>
+      <div class="seal">
+        <span class="seal-a">ウンビウニウム</span>
+        <span class="seal-b">第百二十一元素</span>
+      </div>
+    </div>
+    <div class="load-en">UNBIUNIUM <span>· ELEMENT 121 · AIR COMBAT</span></div>
+    <nav class="jp-list">
+      <button data-go="campaign" class="sel"><span class="en">Campaign</span><span class="jp">作戦</span></button>
+      <button data-go="free"><span class="en">Free Flight</span><span class="jp">自由飛行</span></button>
+      <button data-go="mp"><span class="en">Multiplayer</span><span class="jp">多人数戦</span></button>
+      <button data-go="quick"><span class="en">Quick Battle</span><span class="jp">即時戦闘</span></button>
+      <button data-go="hangar"><span class="en">Hangar</span><span class="jp">格納庫</span></button>
+      <button data-go="settings"><span class="en">Settings</span><span class="jp">設定</span></button>
+      <button data-go="controls"><span class="en">Controls</span><span class="jp">操作</span></button>
+    </nav>
+    <div class="pilot-tag">操縦士 PILOT <b id="pilot-name-label">Pilot</b></div>
+    <div class="load-keys">
+      <span><kbd>↑↓</kbd> 選択 SELECT</span><span><kbd>ENTER</kbd> 決定 CONFIRM</span><span><kbd>ESC</kbd> 戻る BACK</span>
+    </div>
+  </div>
+
+  <!-- Campaign -->
+  <div id="screen-campaign" data-kanji="作戦" class="screen panel-screen">
+    <div class="panel wide">
+      <div class="panel-head"><h2><span class="jp">作戦</span><span class="en">Campaign · Operation Iron Sky</span></h2><button class="back" data-go="main"><span class="jp">戻る</span><span class="en">Back</span></button></div>
+      <div class="split">
+        <div id="mission-list" class="mission-list"></div>
+        <div class="mission-detail">
+          <h3 id="mission-title">Select a mission</h3>
+          <div id="mission-meta" class="mission-meta"></div>
+          <p id="mission-brief" class="brief"></p>
+          <ul id="mission-objectives" class="objectives"></ul>
+          <h4><span class="jp">機体</span><span class="en">Aircraft</span></h4>
+          <div id="campaign-planes" class="plane-grid small"></div>
+          <button id="mission-start" class="primary big-btn" disabled><span class="jp">出撃</span><span class="en">Take Off</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick battle -->
+  <div id="screen-quick" data-kanji="即戦" class="screen panel-screen">
+    <div class="panel wide">
+      <div class="panel-head"><h2><span class="jp">即時戦闘</span><span class="en">Quick Battle</span></h2><button class="back" data-go="main"><span class="jp">戻る</span><span class="en">Back</span></button></div>
+      <p class="brief">Jump straight into a large air–ground battle against AI. Blue Alliance vs Red Coalition: destroy enemy aircraft, tanks, AA and base structures.</p>
+      <h4><span class="jp">戦域</span><span class="en">World</span></h4>
+      <div id="quick-worlds" class="world-grid"></div>
+      <div class="form-row">
+        <label>Enemy aircraft <select id="quick-enemies"><option>4</option><option selected>6</option><option>8</option><option>12</option></select></label>
+        <label>Allied wingmen <select id="quick-allies"><option>0</option><option>2</option><option selected>4</option><option>6</option></select></label>
+        <label>Time of day <select id="quick-time"><option value="day">Day</option><option value="dusk">Dusk</option><option value="dawn">Dawn</option></select></label>
+      </div>
+      <h4><span class="jp">機体</span><span class="en">Aircraft</span></h4>
+      <div id="quick-planes" class="plane-grid small"></div>
+      <button id="quick-start" class="primary big-btn"><span class="jp">出撃</span><span class="en">Launch</span></button>
+    </div>
+  </div>
+
+  <!-- Free flight -->
+  <div id="screen-free" data-kanji="飛行" class="screen panel-screen">
+    <div class="panel wide">
+      <div class="panel-head"><h2><span class="jp">自由飛行</span><span class="en">Free Flight</span></h2><button class="back" data-go="main"><span class="jp">戻る</span><span class="en">Back</span></button></div>
+      <p class="brief">Every jet unlocked, no score, no time limit, no boundaries. Explore the worlds, practise manoeuvres or hunt roaming tank columns. Press 1–9 in flight to switch jets.</p>
+      <h4><span class="jp">戦域</span><span class="en">World</span></h4>
+      <div id="free-worlds" class="world-grid"></div>
+      <div class="form-row">
+        <label>Time of day <select id="free-time"><option value="day">Day</option><option value="dusk">Dusk</option><option value="dawn">Dawn</option></select></label>
+        <label>Enemy tanks <select id="free-tanks"><option value="0">None</option><option value="6">Patrols (6)</option><option value="12" selected>Armoured columns (12)</option><option value="20">Tank army (20)</option></select></label>
+        <label>Enemy fighters <select id="free-enemies"><option selected>0</option><option>2</option><option>4</option><option>6</option></select></label>
+      </div>
+      <div class="form-row checks">
+        <label class="check"><input type="checkbox" id="free-aa"> AA guns guard the tanks</label>
+        <label class="check"><input type="checkbox" id="free-ammo" checked> Unlimited ammo</label>
+        <label class="check"><input type="checkbox" id="free-god"> Invincible</label>
+      </div>
+      <h4><span class="jp">機体</span><span class="en">Aircraft</span> <span class="hint">全機解放 · all unlocked</span></h4>
+      <div id="free-planes" class="plane-grid"></div>
+      <button id="free-start" class="primary big-btn"><span class="jp">出撃</span><span class="en">Take Off</span></button>
+    </div>
+  </div>
+
+  <!-- Hangar -->
+  <div id="screen-hangar" data-kanji="格納庫" class="screen panel-screen">
+    <div class="panel wide">
+      <div class="panel-head"><h2><span class="jp">格納庫</span><span class="en">Hangar</span></h2><button class="back" data-go="main"><span class="jp">戻る</span><span class="en">Back</span></button></div>
+      <div class="form-row"><label>操縦士名 · Pilot name <input id="pilot-name" maxlength="18" value="Pilot"></label></div>
+      <div id="hangar-list" class="plane-grid"></div>
+    </div>
+  </div>
+
+  <!-- Multiplayer browser -->
+  <div id="screen-mp" data-kanji="多人数" class="screen panel-screen">
+    <div class="panel wide">
+      <div class="panel-head"><h2><span class="jp">多人数戦</span><span class="en">Multiplayer</span></h2><button class="back" data-go="main"><span class="jp">戻る</span><span class="en">Back</span></button></div>
+      <div id="mp-status" class="status">Connecting…</div>
+      <div class="split">
+        <div>
+          <h3><span class="jp">部屋一覧</span> Open rooms <button id="mp-refresh" class="tiny">Refresh</button></h3>
+          <div id="room-list" class="room-list"></div>
+          <div class="form-row">
+            <label>Join by code <input id="join-code" maxlength="4" placeholder="ABCD" style="text-transform:uppercase"></label>
+            <button id="join-btn"><span class="jp">参加</span><span class="en">Join</span></button>
+          </div>
+        </div>
+        <div>
+          <h3><span class="jp">部屋作成</span> Create room</h3>
+          <div class="form-col">
+            <label>Room name <input id="room-name" maxlength="28" placeholder="My room"></label>
+            <label>Mode
+              <select id="room-mode">
+                <option value="team">Team Battle (Blue vs Red)</option>
+                <option value="coop">Co-op vs AI</option>
+                <option value="ffa">Free-for-all Dogfight</option>
+              </select>
+            </label>
+            <div class="form-row tight">
+              <label>World <select id="room-world"></select></label>
+              <label>Time of day <select id="room-tod"><option value="day">Day</option><option value="dusk">Dusk</option><option value="dawn">Dawn</option></select></label>
+            </div>
+            <div class="form-row tight">
+              <label>AI bots per team <select id="room-bots"><option>0</option><option>1</option><option selected>2</option><option>4</option><option>6</option><option>8</option></select></label>
+              <label>Time limit (min) <select id="room-time"><option>10</option><option selected>15</option><option>20</option><option>30</option></select></label>
+            </div>
+            <div class="form-row tight">
+              <label>Score to win <select id="room-score"><option>2000</option><option selected>3000</option><option>5000</option><option>8000</option></select></label>
+              <label>Max players <select id="room-max"><option>4</option><option selected>8</option><option>12</option><option>16</option></select></label>
+            </div>
+            <button id="create-btn" class="primary"><span class="jp">作成</span><span class="en">Create room</span></button>
+          </div>
+        </div>
+      </div>
+      <p class="hint">Friends on your network open <b id="mp-share-url"></b> in their browser. Over the internet, forward port 8080 or use a tunnel (see README).</p>
+    </div>
+  </div>
+
+  <!-- Lobby -->
+  <div id="screen-lobby" data-kanji="待機" class="screen panel-screen">
+    <div class="panel wide">
+      <div class="panel-head">
+        <h2><span class="jp">待機室</span><span class="en" id="lobby-name">Room</span> <span class="code-chip">CODE <b id="lobby-code">----</b></span></h2>
+        <button id="lobby-leave" class="back"><span class="jp">退室</span><span class="en">Leave</span></button>
+      </div>
+      <div id="lobby-mode" class="status"></div>
+      <div class="teams">
+        <div class="team team0"><h3><span class="jp">青</span> Blue Alliance <button class="tiny" data-team="0">Join</button></h3><ul id="lobby-team0"></ul></div>
+        <div class="team team1"><h3><span class="jp">赤</span> Red Coalition <button class="tiny" data-team="1">Join</button></h3><ul id="lobby-team1"></ul></div>
+      </div>
+      <h4><span class="jp">機体</span><span class="en">Your aircraft</span></h4>
+      <div id="lobby-planes" class="plane-grid small"></div>
+      <div class="lobby-bottom">
+        <div class="chat">
+          <div id="lobby-chat" class="chat-log"></div>
+          <input id="lobby-chat-input" maxlength="160" placeholder="Say something… (Enter)">
+        </div>
+        <div class="lobby-actions">
+          <button id="lobby-ready">Ready</button>
+          <button id="lobby-start" class="primary">Start match</button>
+          <div id="lobby-wait" class="hint">Waiting for host to start…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings (pages are built by ui.js) -->
+  <div id="screen-settings" data-kanji="設定" class="screen panel-screen">
+    <div class="panel wide settings-panel">
+      <div class="panel-head"><h2><span class="jp">設定</span><span class="en">Settings</span></h2><button class="back" data-back><span class="jp">戻る</span><span class="en">Back</span></button></div>
+      <div id="settings-tabs" class="tabs"></div>
+      <div id="settings-body" class="settings-body"></div>
+    </div>
+  </div>
+
+  <!-- Controls reference (built from the current key bindings) -->
+  <div id="screen-controls" data-kanji="操作" class="screen panel-screen">
+    <div class="panel">
+      <div class="panel-head"><h2><span class="jp">操作</span><span class="en">Controls</span></h2><button class="back" data-back><span class="jp">戻る</span><span class="en">Back</span></button></div>
+      <table id="controls-table" class="controls"></table>
+      <p class="hint">キー設定 · Change any key in Settings → Key bindings.</p>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="screen-pause" data-kanji="停止" class="screen center-screen">
+    <div class="panel narrow">
+      <h2><span class="jp">一時停止</span><span class="en">Paused</span></h2>
+      <div class="menu-buttons">
+        <button id="pause-resume" class="primary"><span class="jp">再開</span><span class="en">Resume</span></button>
+        <button data-go="settings"><span class="jp">設定</span><span class="en">Settings</span></button>
+        <button data-go="controls"><span class="jp">操作</span><span class="en">Controls</span></button>
+        <button id="pause-restart"><span class="jp">再挑戦</span><span class="en">Restart</span></button>
+        <button id="pause-quit"><span class="jp">撤退</span><span class="en">Quit to menu</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="screen-results" data-kanji="戦果" class="screen center-screen">
+    <div class="panel narrow">
+      <div id="result-kanji" class="big-kanji">勝利</div>
+      <h2 id="result-title">Victory</h2>
+      <p id="result-sub" class="brief"></p>
+      <div id="result-stats" class="result-stats"></div>
+      <div class="menu-buttons">
+        <button id="result-next" class="primary"><span class="jp">次の任務</span><span class="en">Next mission</span></button>
+        <button id="result-retry"><span class="jp">再挑戦</span><span class="en">Retry</span></button>
+        <button id="result-menu"><span class="jp">主画面</span><span class="en">Main menu</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mission briefing overlay -->
+  <div id="screen-brief" data-kanji="指令" class="screen center-screen">
+    <div class="panel narrow">
+      <div class="kicker">出撃前指令 · BRIEFING</div>
+      <h2 id="brief-title">Mission</h2>
+      <p id="brief-text" class="brief"></p>
+      <ul id="brief-objectives" class="objectives"></ul>
+      <button id="brief-go" class="primary big-btn"><span class="jp">出撃</span><span class="en">Click to fly</span></button>
+    </div>
+  </div>
+
+  <div id="menu-keys" class="load-keys">
+    <span><kbd>CLICK</kbd> 選択 SELECT</span><span><kbd>ESC</kbd> 戻る BACK</span><span class="mk-brand">鋼翼 · UNBIUNIUM</span>
+  </div>
+
+  <div id="scoreboard"></div>
+  <input id="chat-input" maxlength="160" placeholder="Chat — Enter to send, Esc to cancel">
+  <div id="click-to-play"><span class="jp">画面をクリック</span> Click to capture mouse</div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

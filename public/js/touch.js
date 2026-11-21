@@ -15,6 +15,7 @@ const WEAPONS = [
   ['bomb', 'bomb', 'BOMB', '爆弾', true],
   ['boost', 'boost', 'BOOST', '加速', true],
   ['brake', 'airbrake', 'BRAKE', '制動', true],
+  ['cm', 'flares', 'FLARE', '妨害', false], // drops flares and chaff together
 ];
 const MOVES = [
   ['roll', 'barrelRoll', 'ROLL', '横転'],
@@ -287,6 +288,8 @@ export class TouchControls {
     this.flag('gnE', this.btns.fire, 'empty', !p.ammo);
     this.flag('hvOn', this.btns.hover, 'on', !!p.hover);
     this.flag('bst', this.btns.boost, 'empty', p.boost < 0.05);
+    this.flag('cmE', this.btns.cm, 'empty', !p.flares && !p.chaff);
+    this.flag('cmW', this.btns.cm, 'on', !!(g.threats && g.threats.length));
     const hover = !!p.hover;
     if (hover !== this.hover) {
       this.hover = hover;

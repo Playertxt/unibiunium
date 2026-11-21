@@ -185,7 +185,10 @@ export class LastPilot {
     this.update(0);
   }
 
-  get alive() { return [...this.participants].filter((id) => !this.eliminated.has(id)).length; }
+  get alive() {
+    if (!this.g.authority && this.remoteAlive != null) return this.remoteAlive; // the host's count
+    return [...this.participants].filter((id) => !this.eliminated.has(id)).length;
+  }
 
   onKill(victim) {
     if (victim.type !== 'air' || !this.participants.has(victim.id) || this.eliminated.has(victim.id)) return;
@@ -250,10 +253,18 @@ export class Escort {
     this.vipId = opts.vipId || null;
     this.limit = opts.timeLimit || 12 * 60;
     this.t0 = game.time;
-    this.target = game.groundUnits.find((u) => u.kind === 'hq' && u.team === this.defTeam) || null;
+    this._target = null;
     if (this.target && game.authority) { this.target.maxHp = this.target.hp = 2400; }
-    if (this.target) this.target.vipTarget = true;
     game.escort = this;
+  }
+
+  // The defending HQ (found lazily: multiplayer clients only get ground units from the host after the start).
+  get target() {
+    if (!this._target || this._target.removed) {
+      this._target = this.g.groundUnits.find((u) => u.kind === 'hq' && u.team === this.defTeam) || null;
+      if (this._target) this._target.vipTarget = true;
+    }
+    return this._target;
   }
 
   // An AI-flown Titan (single player escort/intercept roles, or a multiplayer room with no human Titan pilot).
@@ -269,7 +280,15 @@ export class Escort {
 
   makeVip(ac) {
     ac.vip = true;
-    if (ac.local) { ac.maxHp *= 1.6; ac.hp = ac.maxHp; }
+    if (ac.local) { ac.maxHp *= 2.4; ac.hp = ac.maxHp; ac.dmgMul = 0.5; }
+  }
+
+  // Bots on the Titan's side fly as its escort: they attack whatever threatens it.
+  escortOpts() { return (kind, team) => (team === this.vipTeam && kind !== 'titan' && this.vip && this.vip.alive && Math.random() < 0.6 ? { role: 'wingman', leader: this.vip } : {}); }
+  assignEscorts(bots) {
+    const v = this.vip;
+    if (!v) return;
+    for (const a of bots.list) if (a.alive && a.team === this.vipTeam && a.ai && a.kind !== 'titan' && Math.random() < 0.6) { a.ai.role = 'wingman'; a.ai.leader = v; a.ai.think = 0; }
   }
 
   get vip() { return this.vipId ? this.g.byId.get(this.vipId) || null : null; }

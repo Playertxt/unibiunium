@@ -53,6 +53,11 @@ export function setupBattlefield(game, seed = 7, opts = {}) {
       const a = (i / 3) * Math.PI * 2 + 1.1;
       game.spawnGround('aa', team, af.x + Math.cos(a) * 520, af.z + Math.sin(a) * 380);
     }
+    // SAM sites: radar-guided missiles. Fly below 70 m or drop chaff.
+    if (opts.sams !== false) {
+      game.spawnGround('sam', team, base.x + 260 * (team === 0 ? 1 : -1), base.z + dir * 420);
+      game.spawnGround('sam', team, af.x - 420, af.z + dir * 120);
+    }
     for (const x of [-1700, 0, 1700]) {
       game.spawnGround('bunker', team, x + rng.float(-200, 200), dir * (1150 + rng.float(-80, 80)), { objective: true, heading: head });
       game.spawnGround('aa', team, x + rng.float(-250, 250), dir * (1450 + rng.float(-100, 100)));
@@ -112,6 +117,7 @@ export class BotManager {
     this.skill = opts.skill ?? 0.5;
     this.ffaNext = 100;
     this.ffa = !!opts.ffa;
+    this.spawnOpts = opts.spawnOpts || null; // (kind, team) => extra PilotAI options
     this.list = [];
   }
 
@@ -126,7 +132,8 @@ export class BotManager {
     const sp = g.spawnPoint(this.ffa ? 1 : team);
     if (initial) sp.pos.add(new THREE.Vector3((Math.random() - 0.5) * 1800, Math.random() * 400, (Math.random() - 0.5) * 900));
     const kind = pickPlane();
-    const ac = g.spawnAI(kind, t, sp.pos, { heading: sp.heading, skill: this.skill + (Math.random() - 0.5) * 0.3 });
+    const extra = this.spawnOpts ? this.spawnOpts(kind, team) : {};
+    const ac = g.spawnAI(kind, t, sp.pos, { heading: sp.heading, skill: this.skill + (Math.random() - 0.5) * 0.3, ...extra });
     ac.botSlot = team;
     this.list.push(ac);
     return ac;

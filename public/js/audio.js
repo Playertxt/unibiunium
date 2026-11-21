@@ -103,7 +103,7 @@ export class Audio {
     const now = this.ctx.currentTime;
     if (this.lastPlay[name] && now - this.lastPlay[name] < 0.04) return;
     this.lastPlay[name] = now;
-    const range = name === 'bomb' || name === 'explosion' ? 6000 : 2500;
+    const range = name === 'bomb' || name === 'explosion' ? 6000 : name === 'thunder' ? 9000 : 2500;
     const a = this.att(pos, range) * vol;
     if (a < 0.01) return;
     const l = this.listener;
@@ -121,6 +121,18 @@ export class Audio {
       case 'click': this.thump(0.15 * vol, 1200, 0.05); break;
       case 'locking': this.thump(0.1 * vol, 880, 0.06); break;
       case 'lock': this.thump(0.16 * vol, 1320, 0.09); this.thump(0.16 * vol, 1320, 0.09, 0.12); this.thump(0.16 * vol, 1760, 0.25, 0.24); break;
+      case 'missile': this.burst(0.7 * a, 1.6, 1800, 'bandpass', 0.7, 300, 0); this.thump(0.3 * a, 160, 0.5); break;
+      case 'flare': this.burst(0.3 * vol, 0.25, 4000, 'highpass', 0.8, 1500); this.thump(0.12 * vol, 300, 0.08); break;
+      case 'chaff': this.burst(0.25 * vol, 0.35, 6000, 'highpass', 0.6, 2500); break;
+      case 'mslwarn': this.thump(0.22 * vol, 1500, 0.05); break;
+      case 'samwarn': this.thump(0.14 * vol, 700, 0.12); break;
+      case 'thunder': this.burst(1.4 * a, 3.5, 400, 'lowpass', 0.6, 40, delay * 1.6); this.thump(0.9 * a, 55, 2.5, delay * 1.6); break;
+      case 'radio': this.burst(0.08 * vol, 0.12, 2600, 'bandpass', 3, 1800); this.thump(0.06 * vol, 1900, 0.04, 0.1); break;
+      case 'alert': this.thump(0.2 * vol, 780, 0.15); this.thump(0.2 * vol, 580, 0.2, 0.18); break;
+      case 'combo': this.thump(0.25 * vol, 880, 0.1); this.thump(0.25 * vol, 1175, 0.1, 0.09); this.thump(0.28 * vol, 1480, 0.22, 0.18); break;
+      case 'reward': this.thump(0.22 * vol, 660, 0.12); this.thump(0.22 * vol, 880, 0.12, 0.12); this.thump(0.22 * vol, 1320, 0.3, 0.24); break;
+      case 'overcharge': this.burst(0.5 * vol, 1.2, 300, 'lowpass', 1, 3000); this.thump(0.3 * vol, 120, 1.0); break;
+      case 'medal': this.thump(0.2 * vol, 988, 0.15); this.thump(0.2 * vol, 1319, 0.15, 0.14); this.thump(0.22 * vol, 1976, 0.4, 0.28); break;
     }
   }
 

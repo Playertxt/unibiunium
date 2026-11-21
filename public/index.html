@@ -72,6 +72,7 @@
       <button data-go="mp"><span class="en">Multiplayer</span><span class="jp">多人数戦</span></button>
       <button data-go="quick"><span class="en">Quick Battle</span><span class="jp">即時戦闘</span></button>
       <button data-go="hangar"><span class="en">Hangar</span><span class="jp">格納庫</span></button>
+      <button data-go="medals"><span class="en">Medals &amp; Rivals</span><span class="jp">勲章</span></button>
       <button data-go="settings"><span class="en">Settings</span><span class="jp">設定</span></button>
       <button data-go="controls"><span class="en">Controls</span><span class="jp">操作</span></button>
     </nav>
@@ -108,10 +109,32 @@
       <h4><span class="jp">戦域</span><span class="en">World</span></h4>
       <div id="quick-worlds" class="world-grid"></div>
       <div class="form-row">
+        <label>Mode
+          <select id="quick-mode">
+            <option value="battle">Battle (score race)</option>
+            <option value="conquest">Conquest (capture airfields)</option>
+            <option value="lps">Last Pilot Standing</option>
+            <option value="escort">Bomber Escort</option>
+          </select>
+        </label>
+        <label id="quick-role-wrap">Your side
+          <select id="quick-role">
+            <option value="escort">Escort the Titan (fighter)</option>
+            <option value="titan">Fly the Titan yourself</option>
+            <option value="intercept">Intercept the enemy Titan</option>
+          </select>
+        </label>
+        <label>Weather <select id="quick-weather"><option value="auto">Auto (comes and goes)</option><option value="severe">Severe</option><option value="clear">Clear skies</option></select></label>
+      </div>
+      <div class="form-row">
         <label>Enemy aircraft <select id="quick-enemies"><option>4</option><option selected>6</option><option>8</option><option>12</option></select></label>
         <label>Allied wingmen <select id="quick-allies"><option>0</option><option>2</option><option selected>4</option><option>6</option></select></label>
         <label>Time of day <select id="quick-time"><option value="day">Day</option><option value="dusk">Dusk</option><option value="dawn">Dawn</option></select></label>
       </div>
+      <div class="form-row checks">
+        <label class="check"><input type="checkbox" id="quick-events" checked> Dynamic events (enemy aces, convoys, downed pilots, bomber raids)</label>
+      </div>
+      <p id="quick-mode-desc" class="hint"></p>
       <h4><span class="jp">機体</span><span class="en">Aircraft</span></h4>
       <div id="quick-planes" class="plane-grid small"></div>
       <button id="quick-start" class="primary big-btn"><span class="jp">出撃</span><span class="en">Launch</span></button>
@@ -129,11 +152,13 @@
         <label>Time of day <select id="free-time"><option value="day">Day</option><option value="dusk">Dusk</option><option value="dawn">Dawn</option></select></label>
         <label>Enemy tanks <select id="free-tanks"><option value="0">None</option><option value="6">Patrols (6)</option><option value="12" selected>Armoured columns (12)</option><option value="20">Tank army (20)</option></select></label>
         <label>Enemy fighters <select id="free-enemies"><option selected>0</option><option>2</option><option>4</option><option>6</option></select></label>
+        <label>Weather <select id="free-weather"><option value="auto">Auto (comes and goes)</option><option value="severe">Severe</option><option value="clear">Clear skies</option></select></label>
       </div>
       <div class="form-row checks">
         <label class="check"><input type="checkbox" id="free-aa"> AA guns guard the tanks</label>
         <label class="check"><input type="checkbox" id="free-ammo" checked> Unlimited ammo</label>
         <label class="check"><input type="checkbox" id="free-god"> Invincible</label>
+        <label class="check"><input type="checkbox" id="free-events"> Enemy aces &amp; rescue events</label>
       </div>
       <h4><span class="jp">機体</span><span class="en">Aircraft</span> <span class="hint">全機解放 · all unlocked</span></h4>
       <div id="free-planes" class="plane-grid"></div>
@@ -173,8 +198,12 @@
                 <option value="team">Team Battle (Blue vs Red)</option>
                 <option value="coop">Co-op vs AI</option>
                 <option value="ffa">Free-for-all Dogfight</option>
+                <option value="conquest">Conquest (capture airfields)</option>
+                <option value="lps">Last Pilot Standing</option>
+                <option value="escort">Bomber Escort</option>
               </select>
             </label>
+            <label>Weather <select id="room-weather"><option value="auto">Auto (comes and goes)</option><option value="severe">Severe</option><option value="clear">Clear skies</option></select></label>
             <div class="form-row tight">
               <label>World <select id="room-world"></select></label>
               <label>Time of day <select id="room-tod"><option value="day">Day</option><option value="dusk">Dusk</option><option value="dawn">Dawn</option></select></label>
@@ -220,6 +249,18 @@
           <div id="lobby-wait" class="hint">Waiting for host to start…</div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Medals & rival aces (built by ui.js) -->
+  <div id="screen-medals" data-kanji="勲章" class="screen panel-screen">
+    <div class="panel wide">
+      <div class="panel-head"><h2><span class="jp">勲章</span><span class="en">Medals &amp; Rivals</span></h2><button class="back" data-back><span class="jp">戻る</span><span class="en">Back</span></button></div>
+      <div id="medal-summary" class="status"></div>
+      <h4><span class="jp">宿敵</span><span class="en">Enemy aces</span></h4>
+      <div id="ace-list" class="ace-grid"></div>
+      <h4><span class="jp">勲章</span><span class="en">Medals</span></h4>
+      <div id="medal-list" class="medal-grid"></div>
     </div>
   </div>
 

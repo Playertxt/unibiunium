@@ -19,6 +19,11 @@ import { TankHunt, Rearmer } from './freeflight.js';
 import { HangarScene } from './hangar.js';
 import { MISSIONS, Progress, startMission, missionStars } from './campaign.js';
 import { Settings, AIRCRAFT, AIRCRAFT_ORDER, TEAM_NAMES } from './config.js';
+import { Weather } from './weather.js';
+import { EventDirector } from './events.js';
+import { Conquest, LastPilot, Escort } from './modes.js';
+import { Medals, MEDALS } from './medals.js';
+import { AceRecords } from './aces.js';
 
 const $ = (id) => document.getElementById(id);
 // Yield to the browser so the loading bar repaints (falls back to a timer in background tabs).
@@ -37,6 +42,12 @@ const TIPS = [
   'Boost (Z) recharges on its own. Save it for the merge.',
   'In Free Flight, press 1 to 9 to swap jets in mid-air.',
   'Air brake (B) tightens your turn, but bleeds speed fast.',
+  'Missile warning? Drop flares (N) for heat-seekers, chaff (M) for SAMs, then break hard.',
+  'SAM radar can\'t see you below 70 m. Fly low through their air defence.',
+  'Three kills in a row call a wingman; five bring an airstrike; seven overcharge your guns.',
+  'Enemy aces remember you. Shoot one down and they\'ll come back for revenge.',
+  'Lightning blanks every radar nearby for a moment, including the enemy\'s.',
+  'In Conquest, hover (H) and land inside an airstrip\'s beacon ring to capture it.',
 ];
 let tipIdx = Math.floor(Math.random() * TIPS.length);
 function setLoad(pct, text) {
@@ -63,6 +74,8 @@ class App {
     this.tipTimer = setInterval(nextTip, 5000);
     Settings.load();
     Progress.load();
+    Medals.load();
+    AceRecords.load();
     setLoad(5, 'Checking your graphics hardware…'); await frame();
     Settings.detected = detectHardware();
     if (Settings.data.preset === 'auto') Settings.applyPreset('auto');
@@ -303,27 +316,93 @@ class App {
     } finally { this.busy = false; }
   }
 
+  // Weather and dynamic events for a match. weather: 'auto' | 'severe' | 'clear'.
+  addFeatures(g, { weather = 'auto', seed, events = null, myTeam = 0, enemyTeam = 1 } = {}) {
+    if (weather && weather !== 'clear') g.weather = new Weather(g, this.worldId, { mode: weather, seed });
+    if (events && events.length && g.authority) g.events = new EventDirector(g, { aces: g.aces, kinds: events, myTeam, enemyTeam });
+  }
+
+  // Bots in Conquest: about 40% fly capture runs (anything but the Titan can hover-land).
+  captureOpts() { return (kind) => ({ capture: kind !== 'titan' && Math.random() < 0.4 }); }
+
   async startQuick(o) {
     if (this.busy) return;
     this.busy = true;
     try {
       await this.loadWorld(o.world || 'island');
       this.disposeGame();
-      const g = this.game = new Game(this, this.baseOpts({ mode: 'quick', plane: o.plane, timeOfDay: o.timeOfDay, scoreLimit: 3000, timeLimit: 20 * 60 }));
-      this.session = { type: 'quick', opts: o };
+      const mode = o.mode || 'battle';
       const seed = Math.floor(Math.random() * 1000);
-      setupBattlefield(g, seed, {});
-      const bots = new BotManager(g, { 0: o.allies, 1: o.enemies }, { skill: 0.5 });
-      bots.initial();
-      const reinf = new Reinforcements(g, { seed });
-      g.extraUpdate = (dt) => { bots.update(dt); reinf.update(dt); g.checkMatchEnd(); };
+      const plane = mode === 'escort' && o.role === 'titan' ? 'titan' : o.plane;
+      const limits = { battle: [3000, 20], conquest: [3000, 20], lps: [0, 0], escort: [0, 0] }[mode] || [3000, 20];
+      const g = this.game = new Game(this, this.baseOpts({ mode: 'quick', plane, timeOfDay: o.timeOfDay, scoreLimit: limits[0], timeLimit: limits[1] * 60 }));
+      g.quickMode = mode;
+      this.session = { type: 'quick', opts: o };
+      const world = WORLDS[this.worldId].name;
+      let title, text, lines, bots = null, reinf = null;
+      if (mode === 'lps') {
+        g.ffa = true;
+        g.lives = 1;
+        bots = new BotManager(g, { 0: Math.max(3, o.enemies) }, { skill: 0.55, ffa: true });
+        bots.initial();
+        const lp = g.lps = new LastPilot(g, { seed, participants: [g.playerId, ...bots.list.map((a) => a.id)] });
+        this.addFeatures(g, { weather: o.weather, seed });
+        g.objectiveText = () => `PILOTS LEFT ${lp.alive} · ${lp.zone.phase === 'final' ? 'FINAL ZONE' : `${lp.zone.phase === 'hold' ? 'ZONE SHRINKS IN' : 'ZONE CLOSING'} ${fmtTime(lp.zone.left)}`}`;
+        g.extraUpdate = () => {
+          // Offline, the match ends as soon as you're out: you see where you placed.
+          if (!g.over && lp.eliminated.has(g.playerId)) {
+            g.lpsOutAt ??= g.time + 3;
+            if (g.time >= g.lpsOutAt) g.finish(1, `You placed #${lp.placeOf(g.playerId)} of ${lp.participants.size}`);
+          }
+        };
+        title = `Last Pilot Standing — ${world}`;
+        text = 'Every pilot for themselves. No respawns. The safe zone keeps shrinking; outside it your jet takes damage. Be the last one flying.';
+        lines = [`${lp.participants.size} pilots in the arena`, 'Stay inside the red wall (dashed circle on the minimap shows the next zone)'];
+      } else {
+        setupBattlefield(g, seed, {});
+        reinf = new Reinforcements(g, { seed });
+        if (mode === 'escort') {
+          const vipTeam = o.role === 'intercept' ? 1 : 0;
+          const es = new Escort(g, { vipTeam, timeLimit: 12 * 60 });
+          g.escort = es;
+          if (plane === 'titan' && vipTeam === 0) { g.vipPlayer = true; g.lives = 1; } else es.spawnAIVip();
+          bots = new BotManager(g, { 0: o.allies, 1: o.enemies }, { skill: 0.5, spawnOpts: es.escortOpts() });
+          bots.initial();
+          g.objectiveText = () => {
+            const v = es.vip, t = es.target;
+            const vh = v && v.alive ? `${Math.round(v.hp / v.maxHp * 100)}%` : g.vipPlayer && !g.player ? '—' : 'DOWN';
+            return `TITAN ${vh} · ${t ? `${t.def.name.toUpperCase()} ${Math.round(Math.max(0, t.hp) / t.maxHp * 100)}%` : ''} · ${fmtTime(es.timeLeft)}`;
+          };
+          title = `Bomber Escort — ${world}`;
+          text = vipTeam === 0 ? (g.vipPlayer ? 'You fly the Titan. Your escorts keep enemy fighters off you; get over the enemy Command HQ and bomb it flat. You have one aircraft.'
+            : 'Escort the Titan "Atlas" to the enemy Command HQ. Keep enemy fighters off it until its bombs flatten the target.')
+            : 'An enemy Titan with fighter escort is heading for our Command HQ. Shoot it down before it gets there.';
+          lines = vipTeam === 0 ? ['Win: the enemy HQ is destroyed', 'Lose: the Titan is shot down, or 12 minutes pass', 'A SAM site guards the target: knock it out or use chaff (M)']
+            : ['Win: the enemy Titan is shot down, or it fails within 12 minutes', 'Lose: our Command HQ is destroyed'];
+        } else {
+          const conquest = mode === 'conquest';
+          if (conquest) new Conquest(g, {});
+          bots = new BotManager(g, { 0: o.allies, 1: o.enemies }, { skill: 0.5, spawnOpts: conquest ? this.captureOpts() : null });
+          bots.initial();
+          title = `${conquest ? 'Conquest' : 'Quick Battle'} — ${world}`;
+          text = conquest ? 'Capture airfields and forward airstrips by hover-landing inside their beacon rings (press H, touch down gently, hold for a few seconds). Every field you own scores points. Kills score too. First team to 3000 wins.'
+            : 'Destroy enemy aircraft, tanks, AA guns and base structures to earn points for the Blue Alliance. First team to 3000 points — or the leader after 20 minutes — wins.';
+          lines = conquest ? ['5 fields: A (ours), B C D (neutral), E (theirs)', 'Owned field: +4 points every 2 s', 'Enemy bots hover-land to capture too: shoot them on the pad']
+            : ['Air kill: 100–120 pts', 'Tanks 50 · AA 40 · SAM 90 · Pillboxes 60 · Hangars 100 · HQ 400', 'Destroyer 300 (worlds with open sea)'];
+        }
+        this.addFeatures(g, { weather: o.weather, seed, events: o.events === false ? null : mode === 'escort' ? ['ace'] : ['ace', 'convoy', 'rescue', 'raid'] });
+        if (g.events) lines.push('Watch for dynamic events: enemy aces, escaping convoys, downed pilots, bomber raids');
+      }
+      g.extraUpdate = ((prev) => (dt) => { if (prev) prev(dt); if (bots && mode !== 'lps') bots.update(dt); if (reinf) reinf.update(dt); g.checkMatchEnd(); })(g.extraUpdate);
       g.onFinish = (winner, reason) => this.onQuickFinish(winner, reason);
       g.spawnPlayer();
+      if (g.vipPlayer && g.player) { g.escort.makeVip(g.player); g.escort.vipId = g.playerId; }
+      if (g.escort && bots) g.escort.assignEscorts(bots);
       g.paused = true;
       g.updateCamera(0);
       this.state = 'brief';
-      this.ui.showBrief(`Quick Battle — ${WORLDS[this.worldId].name}`, 'Destroy enemy aircraft, tanks, AA guns and base structures to earn points for the Blue Alliance. First team to 3000 points — or the leader after 20 minutes — wins.',
-        ['Air kill: 100–120 pts', 'Tanks 50 · AA 40 · Pillboxes 60 · Hangars 100 · HQ 400', 'Destroyer 300 (worlds with open sea)']);
+      if (g.weather) lines.push(`Weather: ${g.weather.name}${o.weather === 'severe' ? ' (severe)' : ' (comes and goes)'}`);
+      this.ui.showBrief(title, text, lines);
     } finally { this.busy = false; }
   }
 
@@ -340,6 +419,7 @@ class App {
       const bots = o.enemies > 0 ? new BotManager(g, { 1: o.enemies }, { skill: 0.45 }) : null;
       if (bots) bots.initial();
       const rearm = o.ammo ? new Rearmer(g) : null;
+      this.addFeatures(g, { weather: o.weather, seed, events: o.events ? ['ace', 'rescue', ...(hunt ? ['convoy'] : [])] : null });
       g.extraUpdate = (dt) => { if (hunt) hunt.update(dt); if (bots) bots.update(dt); if (rearm) rearm.update(dt); };
       g.objectiveText = () => {
         const p = AIRCRAFT[g.playerPlane];
@@ -362,6 +442,8 @@ class App {
       ];
       if (hunt) lines.push(`Enemy tank columns${o.aa ? ' guarded by AA guns' : ''} roam the map — use bombs, rockets or armour-piercing cannons`);
       if (o.enemies) lines.push(`${o.enemies} enemy fighters are hunting you`);
+      if (g.events) lines.push('Dynamic events on: enemy aces and downed pilots to rescue');
+      if (g.weather) lines.push(`Weather: ${g.weather.name}`);
       this.ui.showBrief(`Free Flight — ${WORLDS[this.worldId].name}`, 'No score, no time limit, no boundaries. Fly anything, anywhere.', lines);
     } finally { this.busy = false; }
   }
@@ -372,35 +454,76 @@ class App {
     await this.loadWorld(s.world || 'island');
     this.disposeGame();
     const me = msg.players.find((p) => p.id === net.id) || { team: 0, plane: Settings.data.plane, name: Settings.data.name };
-    const plane = AIRCRAFT[me.plane] ? me.plane : 'falcon';
-    const team = s.mode === 'ffa' ? 1000 + (parseInt(net.id.replace(/\D/g, ''), 10) || 0) : s.mode === 'coop' ? 0 : me.team;
+    const solo = s.mode === 'ffa' || s.mode === 'lps';
+    const teamMode = !solo && s.mode !== 'coop';
+    // Bomber Escort: the Blue player flying a Titan (else the first Blue player) is the VIP everyone protects or hunts.
+    let vipId = null;
+    if (s.mode === 'escort') {
+      const blue = msg.players.filter((p) => p.team === 0).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      const v = blue.find((p) => p.plane === 'titan') || blue[0];
+      vipId = v ? v.id : null;
+    }
+    let plane = AIRCRAFT[me.plane] ? me.plane : 'falcon';
+    if (vipId && vipId === net.id) plane = 'titan';
+    const team = solo ? 1000 + (parseInt(net.id.replace(/\D/g, ''), 10) || 0) : s.mode === 'coop' ? 0 : me.team;
     const g = this.game = new Game(this, this.baseOpts({ mode: 'mp', net, mp: s, team, plane, name: me.name, timeOfDay: s.timeOfDay,
-      scoreLimit: s.mode === 'ffa' ? Math.round(s.scoreLimit / 3) : s.scoreLimit, timeLimit: s.timeLimit * 60 }));
+      scoreLimit: s.mode === 'ffa' ? Math.round(s.scoreLimit / 3) : s.mode === 'lps' || s.mode === 'escort' ? 0 : s.scoreLimit,
+      timeLimit: s.mode === 'lps' || s.mode === 'escort' ? 0 : s.timeLimit * 60 }));
+    if (solo) g.ffa = true;
+    g.aceTeam = 1;
     this.session = { type: 'mp' };
     const sync = this.sync = new MPSync(g, net, s, msg.players);
     let bots = null, reinf = null;
     const humans = msg.players.length;
+    if (s.mode === 'conquest') new Conquest(g, {});
+    if (s.mode === 'lps') {
+      g.lives = msg.late ? 0 : 1; // late joiners spectate
+      new LastPilot(g, { seed: msg.seed, participants: msg.late ? [] : msg.players.map((p) => p.id) });
+    }
     const setupHost = (fresh) => {
-      if (fresh && s.mode !== 'ffa') setupBattlefield(g, msg.seed % 1000, {});
-      if (s.mode !== 'ffa') reinf = new Reinforcements(g, { seed: msg.seed });
-      const quota = s.mode === 'team' ? { 0: s.bots, 1: s.bots } : s.mode === 'coop' ? { 0: s.bots, 1: s.bots + 2 + humans * 2 } : { 0: s.bots };
-      bots = new BotManager(g, quota, { skill: 0.55, ffa: s.mode === 'ffa' });
-      if (fresh) bots.initial();
+      if (fresh && !solo) setupBattlefield(g, msg.seed % 1000, {});
+      if (!solo) reinf = new Reinforcements(g, { seed: msg.seed });
+      const quota = teamMode ? { 0: s.bots, 1: s.bots } : s.mode === 'coop' ? { 0: s.bots, 1: s.bots + 2 + humans * 2 } : { 0: s.bots };
+      const esc = () => (g.escort ? g.escort.escortOpts() : () => ({}));
+      bots = new BotManager(g, quota, { skill: 0.55, ffa: solo, spawnOpts: s.mode === 'conquest' ? this.captureOpts() : s.mode === 'escort' ? (k, t) => esc()(k, t) : null });
+      if (fresh) {
+        bots.initial();
+        if (g.lps) for (const a of bots.list) g.lps.participants.add(a.id);
+      }
+      if (s.mode === 'escort' && !g.escort) {
+        new Escort(g, { vipTeam: 0, vipId, timeLimit: s.timeLimit * 60 });
+        if (!vipId && fresh) g.escort.spawnAIVip();
+      }
+      if (!solo && s.mode !== 'escort' && !g.events) g.events = new EventDirector(g, { aces: g.aces, kinds: ['ace', 'convoy', 'rescue', 'raid'], myTeam: 0, enemyTeam: 1 });
     };
     if (net.isHost) setupHost(true);
+    // Clients still need the escort controller for the HUD (the host owns the outcome).
+    if (s.mode === 'escort' && !g.escort) new Escort(g, { vipTeam: 0, vipId, timeLimit: s.timeLimit * 60 });
     sync.onBecomeHost = () => setupHost(false);
-    g.extraUpdate = (dt) => { sync.update(dt); if (bots) bots.update(dt); if (reinf) reinf.update(dt); };
+    this.addFeatures(g, { weather: s.weather || 'auto', seed: msg.seed });
+    g.extraUpdate = (dt) => { sync.update(dt); if (bots && s.mode !== 'lps') bots.update(dt); if (reinf) reinf.update(dt); };
     g.onFinish = (winner, reason) => {
-      if (net.isHost) net.send({ t: 'end', results: { winner, reason, ts: g.teamScore, scores: [...g.scores.values()], ffa: s.mode === 'ffa' } });
+      if (net.isHost) net.send({ t: 'end', results: { winner, reason, ts: g.teamScore, scores: [...g.scores.values()], ffa: solo, lpsWinner: g.lpsWinner || null } });
     };
     if (msg.late && msg.elapsed) g.time = msg.elapsed;
+    if (g.lps) g.lps.t0 = 0;
+    if (g.escort) g.escort.t0 = 0;
+    if (vipId === net.id) g.lives = 1;
     g.spawnPlayer();
+    if (vipId === net.id && g.player) g.escort.makeVip(g.player);
     g.updateCamera(0);
     this.state = 'brief';
-    const modes = { team: 'Team Battle', coop: 'Co-op vs AI', ffa: 'Free-for-all Dogfight' };
-    const goal = s.mode === 'ffa' ? `Shoot down other pilots. First to ${g.scoreLimit} points wins.` : `Destroy enemy aircraft and ground targets. First team to ${s.scoreLimit} points wins.`;
-    this.ui.showBrief(`${modes[s.mode]} — ${WORLDS[this.worldId].name}`, `${goal} Time limit: ${s.timeLimit} minutes. ${Settings.touch ? 'Hold SCORE for the scoreboard.' : 'Press Enter or T to chat, Tab for the scoreboard.'}`,
-      s.mode === 'ffa' ? [] : [`You fly for the ${TEAM_NAMES[team] || 'Blue Alliance'}`]);
+    const modes = { team: 'Team Battle', coop: 'Co-op vs AI', ffa: 'Free-for-all Dogfight', conquest: 'Conquest', lps: 'Last Pilot Standing', escort: 'Bomber Escort' };
+    const goals = {
+      ffa: `Shoot down other pilots. First to ${g.scoreLimit} points wins.`,
+      lps: 'No respawns, and the safe zone keeps shrinking. Be the last pilot flying.',
+      conquest: `Hover-land inside an airfield's beacon ring to capture it. Owned fields and kills score. First team to ${s.scoreLimit} wins.`,
+      escort: vipId === net.id ? 'You fly the Titan. Bomb the Red Command HQ; if you are shot down, Blue loses.' : 'Blue escorts the Titan to bomb the Red Command HQ; Red has to shoot it down.',
+    };
+    const goal = goals[s.mode] || `Destroy enemy aircraft and ground targets. First team to ${s.scoreLimit} points wins.`;
+    const limit = s.mode === 'lps' ? '' : ` Time limit: ${s.timeLimit} minutes.`;
+    this.ui.showBrief(`${modes[s.mode]} — ${WORLDS[this.worldId].name}`, `${goal}${limit} ${Settings.touch ? 'Hold SCORE for the scoreboard.' : 'Press Enter or T to chat, Tab for the scoreboard.'}`,
+      solo ? (msg.late && s.mode === 'lps' ? ['The match is already running: you are spectating'] : []) : [`You fly for the ${TEAM_NAMES[team] || 'Blue Alliance'}`]);
   }
 
   resume() {
@@ -441,7 +564,20 @@ class App {
   }
 
   statsRows(g) {
-    return [['Air kills', g.stats.kills], ['Ground kills', g.stats.gkills], ['Deaths', g.stats.deaths], ['Score', g.stats.score], ['Time', fmtTime(g.time)]];
+    const rows = [['Air kills', g.stats.kills], ['Ground kills', g.stats.gkills], ['Deaths', g.stats.deaths], ['Score', g.stats.score], ['Best streak', g.streaks.best], ['Time', fmtTime(g.time)]];
+    const got = Medals.session.map((id) => (MEDALS.find((m) => m[0] === id) || [])[1]).filter(Boolean);
+    if (got.length) rows.push([`Medals (${got.length})`, got.join(', ')]);
+    return rows;
+  }
+
+  // Mode-win medals for Last Pilot Standing and Bomber Escort.
+  modeMedals(g, winner) {
+    const won = winner === g.playerTeam || (g.lps && g.lpsWinner === g.playerId);
+    if (g.lps && g.lpsWinner === g.playerId) Medals.unlock('lps_win');
+    if (g.escort && won) {
+      if (g.escort.vipTeam === g.playerTeam) { Medals.unlock('escort_win'); if (g.escort.vipId === g.playerId) Medals.unlock('vip_titan'); }
+      else Medals.unlock('intercept_win');
+    }
   }
 
   onCampaignFinish(win, reason) {
@@ -466,8 +602,13 @@ class App {
     this.state = 'results';
     this.input.unlock();
     this.audio.silence();
-    const title = winner === -1 ? 'Draw' : winner === 0 ? 'Victory' : 'Defeat';
-    this.ui.showResults({ title, cls: winner === 0 ? 'win' : winner === 1 ? 'lose' : '', sub: `${reason} — Blue ${g.teamScore[0]} : ${g.teamScore[1]} Red`, stats: this.statsRows(g), retry: true });
+    this.modeMedals(g, winner);
+    const lps = g.quickMode === 'lps', escort = g.quickMode === 'escort';
+    const title = lps ? (winner === 0 ? 'Victory' : 'Eliminated') : winner === -1 ? 'Draw' : winner === 0 ? 'Victory' : 'Defeat';
+    const sub = lps || escort ? reason : `${reason} — Blue ${g.teamScore[0]} : ${g.teamScore[1]} Red`;
+    const stats = this.statsRows(g);
+    if (lps) stats.unshift(['Placed', `#${g.lps.placeOf(g.playerId)} of ${g.lps.participants.size}`]);
+    this.ui.showResults({ title, cls: winner === 0 ? 'win' : winner === 1 ? 'lose' : '', sub, stats, retry: true });
   }
 
   onMPEnd(r) {
@@ -477,13 +618,18 @@ class App {
     this.input.unlock();
     this.audio.silence();
     let title, cls = '';
-    if (r.ffa) {
+    if (r.lpsWinner !== undefined && r.lpsWinner !== null) {
+      const mine = r.lpsWinner === this.net.id;
+      title = mine ? 'You win!' : `${(r.scores || []).find((x) => x.id === r.lpsWinner)?.name || 'Someone'} wins`;
+      cls = mine ? 'win' : '';
+      if (mine) Medals.unlock('lps_win');
+    } else if (r.ffa) {
       const top = [...(r.scores || [])].sort((a, b) => b.score - a.score)[0];
       title = top ? (top.id === this.net.id ? 'You win!' : `${top.name} wins`) : 'Match over';
       cls = top && top.id === this.net.id ? 'win' : '';
     } else if (r.winner === -1) title = 'Draw';
-    else { const mine = g.playerTeam === r.winner; title = mine ? 'Victory' : 'Defeat'; cls = mine ? 'win' : 'lose'; }
-    const sub = r.ffa ? r.reason : `${r.reason} — Blue ${r.ts[0]} : ${r.ts[1]} Red`;
+    else { const mine = g.playerTeam === r.winner; title = mine ? 'Victory' : 'Defeat'; cls = mine ? 'win' : 'lose'; if (g.escort) this.modeMedals(g, r.winner); }
+    const sub = r.ffa || g.escort ? r.reason : `${r.reason} — Blue ${r.ts[0]} : ${r.ts[1]} Red`;
     this.session = { type: 'mpdone' };
     this.ui.showResults({ title, cls, sub, stats: this.statsRows(g), menuLabel: 'Back to lobby' });
   }

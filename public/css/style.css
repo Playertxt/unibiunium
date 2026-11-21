@@ -352,6 +352,7 @@ html { touch-action: manipulation; -webkit-tap-highlight-color: transparent; -we
 #touch .t-bomb { right: calc(32px + var(--sr)); bottom: calc(116px + var(--sb)); }
 #touch .t-boost { right: calc(108px + var(--sr)); bottom: calc(88px + var(--sb)); width: 54px !important; height: 54px !important; }
 #touch .t-brake { right: calc(180px + var(--sr)); bottom: calc(66px + var(--sb)); width: 50px !important; height: 50px !important; }
+#touch .t-cm { right: calc(36px + var(--sr)); bottom: calc(186px + var(--sb)); width: 50px !important; height: 50px !important; }
 
 /* manoeuvres, bottom centre */
 #touch .t-moves { position: absolute; left: 50%; bottom: calc(8px + var(--sb)); transform: translateX(-50%); display: flex; gap: 6px; }
@@ -423,3 +424,22 @@ body.touch .panel, body.touch .settings-body, body.touch .room-list { -webkit-ov
   .panel.narrow .menu-buttons { margin-top: 8px; gap: 6px; }
   .menu-buttons button { padding-top: 7px; padding-bottom: 7px; }
 }
+
+/* Medals & rival aces */
+.medal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-top: 8px; }
+.medal { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; background: rgba(6,6,8,0.55); border-left: 3px solid #3a3833; opacity: 0.6; }
+.medal.got { border-left-color: #ffcf5a; opacity: 1; }
+.medal .mk { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #2a2823; color: #8f8a82; font-family: 'Shippori Mincho', serif; font-weight: 800; font-size: 13px; }
+.medal.got .mk { background: #ffcf5a; color: #2a1f08; }
+.medal b { display: block; font-size: 15px; color: #ece6da; }
+.medal .md { font-size: 12px; color: #8f8a82; line-height: 1.35; }
+.medal .mp { height: 3px; background: rgba(255,255,255,0.12); margin-top: 6px; }
+.medal .mp i { display: block; height: 100%; background: #ffcf5a; }
+.ace-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 8px; }
+.ace { padding: 12px 14px; background: rgba(6,6,8,0.6); border-top: 3px solid var(--ace, #ffcf5a); }
+.ace .akanji { font-family: 'Shippori Mincho', serif; font-weight: 800; font-size: 26px; color: var(--ace, #ffcf5a); float: right; }
+.ace b { display: block; font-size: 17px; color: #ece6da; }
+.ace .astyle { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #8f8a82; }
+.ace .adesc { font-size: 12px; color: #b9b3a8; margin: 6px 0; line-height: 1.4; }
+.ace .arec { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: #ece6da; }
+#quick-mode-desc { margin-top: 4px; }

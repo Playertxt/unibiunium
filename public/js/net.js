@@ -5,6 +5,7 @@ import { Aircraft } from './aircraft.js';
 import { GroundUnit } from './ground.js';
 import { PilotAI } from './ai.js';
 import { BotManager, Reinforcements } from './battle.js';
+import { Medals } from './medals.js';
 
 export class Net {
   constructor() {
@@ -124,8 +125,10 @@ export class MPSync {
       let e = g.byId.get(s[0]);
       if (!e) {
         if (!s[4].a) continue;
-        e = new Aircraft(g, { id: s[0], kind: s[1], team: s[2], name: s[3], pos: new THREE.Vector3(...s[4].p), quat: new THREE.Quaternion(...s[4].q), skin: g.skinFor(s[2]), local: false });
+        // s[5]: custom livery key (enemy aces), s[6]: ace id
+        e = new Aircraft(g, { id: s[0], kind: s[1], team: s[2], name: s[3], pos: new THREE.Vector3(...s[4].p), quat: new THREE.Quaternion(...s[4].q), skin: typeof s[5] === 'string' ? s[5] : g.skinFor(s[2]), local: false });
         e.isBot = true;
+        if (s[6]) e.aceId = s[6];
         g.addEntity(e);
         g.addScore(e.id, e.name, e.team, true);
       }
@@ -154,7 +157,7 @@ export class MPSync {
 
   onHit(m) {
     const e = this.game.byId.get(m.id);
-    if (e && e.local && e.alive) e.damage(m.d, m.by);
+    if (e && e.local && e.alive) { this.game.recordHit(e, m.by, { weapon: m.w, explosive: !!m.x, blast: m.bl }); e.damage(m.d, m.by); }
   }
 
   onKill(m) {
@@ -163,6 +166,8 @@ export class MPSync {
     if (e && !e.local) e.netKill();
     const victim = e || { id: m.v, type: m.vt, team: m.vteam, name: m.vn, kind: m.kind, human: m.human, def: m.vt === 'air' ? AIRCRAFT[m.kind] : GROUND[m.kind] };
     if (!victim.def) victim.def = { name: m.vn, score: 50 };
+    if (m.ace) victim.aceId = m.ace;
+    if (m.vip) victim.vip = true;
     if (m.kn && !g.scores.has(m.k)) g.addScore(m.k, m.kn, g.teamOf(m.k), false);
     g.addFeed(m.k, victim, m.r);
     let pts = 0;
@@ -170,13 +175,15 @@ export class MPSync {
       pts = g.credit(m.k, victim);
       if (victim.type === 'air') { const s = g.scores.get(m.v); if (s) s.deaths++; }
     }
-    if (m.k === g.playerId && m.v !== g.playerId) g.onPlayerKill(victim, pts || g.pointsFor(victim));
+    if (m.k === g.playerId && m.v !== g.playerId) g.onPlayerKill(victim, pts || g.pointsFor(victim), { weapon: m.w, gunsOnly: !!m.go, blast: m.bl });
+    g.killHooks(victim, m.k);
   }
 
   onEvent(m) {
     const g = this.game;
     const src = g.byId.get(m.id);
     if (m.k === 'crash') { if (src && !src.local) { src.pos.set(...m.p); src.crash(); } return; }
+    if (m.k === 'ui') return this.onUI(m);
     const pos = new THREE.Vector3(...m.p), vel = new THREE.Vector3(...m.v);
     const team = src ? src.team : -1, skin = src ? src.skin : 1;
     if (m.k === 'bomb') {
@@ -185,9 +192,28 @@ export class MPSync {
       g.weapons.dropBomb({ pos, vel, owner: m.id, team, power: def ? def.power : 1, visual: true, skin, quat: src ? src.quat : undefined, scale: def && def.power > 1.2 ? 1.25 : 1,
         target, guide: target ? m.tr || 20 : 0 });
       if (src && src.parts.bombs.length) { const b = src.parts.bombs.find((x) => x.visible); if (b) b.visible = false; }
+    } else if (m.k === 'missile') {
+      const target = m.tg ? g.byId.get(m.tg) || null : null;
+      g.weapons.fireMissile({ pos, vel, owner: m.id, team, visual: true, skin, target, seeker: m.sk || 'ir' });
+    } else if (m.k === 'flare' || m.k === 'chaff') {
+      const n = 3;
+      for (let i = 0; i < n; i++) g.weapons.dropDecoy(m.k, pos, vel, team, m.id, true);
     } else if (m.k === 'rocket') {
       const target = m.tg ? g.byId.get(m.tg) || null : null;
       g.weapons.fireRocket({ pos, vel, owner: m.id, team, visual: true, skin, target, turn: target ? m.tr || 2 : 0 });
+    }
+  }
+
+  // Host-mirrored UI: messages, radio calls, medals for remote players, bonus points from clients.
+  onUI(m) {
+    const g = this.game, me = this.net.id;
+    switch (m.u) {
+      case 'msg': g.message(m.text, m.dur || 3, m.color || '#ffffff'); break;
+      case 'radio': g.radio(m.n, m.x, m.c, false); break;
+      case 'rescued': if (m.to === me) { Medals.unlock('rescue'); Medals.inc('rescues'); g.awardBonus(250); } break;
+      case 'captured': if (m.to === me) { Medals.unlock('capture'); g.awardBonus(200); } break;
+      case 'bonus': if (this.net.isHost && m.id) g.creditBonus(m.id, m.pts | 0); break;
+      default: break;
     }
   }
 
@@ -195,6 +221,10 @@ export class MPSync {
     const g = this.game;
     if (this.net.isHost) return;
     g.teamScore = m.ts;
+    if (g.conquest && m.cp) g.conquest.apply(m.cp);
+    g.event = m.ev || null;
+    if (g.lps && m.lp != null) g.lps.remoteAlive = m.lp;
+    if (g.escort && m.vip) g.escort.vipId = m.vip;
     for (const s of m.s) {
       const cur = g.scores.get(s.id) || g.addScore(s.id, s.name, s.team, s.bot);
       Object.assign(cur, s);
@@ -207,6 +237,7 @@ export class MPSync {
     const e = g.byId.get(m.id);
     if (e) { e.remove(); }
     g.message(`${m.name} left the battle`, 3, '#9aa7b4');
+    if (g.lps && g.lps.participants.has(m.id)) g.lps.onKill({ type: 'air', id: m.id, name: m.name });
   }
 
   becomeHost() {
@@ -244,14 +275,15 @@ export class MPSync {
     if (this.aiTimer <= 0) {
       this.aiTimer = 0.1;
       const a = [], gr = [];
-      for (const ac of g.aircraft) if (ac.local && !ac.human && !ac.removed) a.push([ac.id, ac.kind, ac.team, ac.name, ac.netState()]);
+      for (const ac of g.aircraft) if (ac.local && !ac.human && !ac.removed) a.push([ac.id, ac.kind, ac.team, ac.name, ac.netState(), typeof ac.skin === 'string' ? ac.skin : 0, ac.aceId || 0]);
       for (const u of g.groundUnits) { const s = u.netState(); s.push(u.kind, u.team, u.objective ? 1 : 0); gr.push(s); }
       net.send({ t: 'ai', a, g: gr });
     }
     this.scoreTimer -= dt;
     if (this.scoreTimer <= 0) {
       this.scoreTimer = 1;
-      net.send({ t: 'score', ts: g.teamScore, s: [...g.scores.values()], time: Math.round(g.time) });
+      net.send({ t: 'score', ts: g.teamScore, s: [...g.scores.values()], time: Math.round(g.time),
+        cp: g.conquest ? g.conquest.state() : undefined, ev: g.event || null, lp: g.lps ? g.lps.alive : undefined, vip: g.escort ? g.escort.vipId : undefined });
     }
     g.checkMatchEnd();
   }

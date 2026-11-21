@@ -20,8 +20,54 @@ Then open **http://localhost:8080**. To use a different port, run `python3 serve
 |---|---|
 | **Campaign** | *Operation Iron Sky*, 6 missions: dogfight training, stop a tank column, intercept a bomber stream, a night strike on radar/fuel/hangars, front-line close air support, and the final assault on the enemy HQ and destroyer. Progress and ★ ratings are saved in the browser. |
 | **Free Flight** | Sandbox with every jet unlocked: no score, no time limit, no boundaries. Optionally hunt roaming enemy tank columns (light and heavy tanks, optionally guarded by AA guns) and enemy fighters. Options for unlimited ammo and invincibility. Press **1–9** in flight to switch jets instantly. |
-| **Quick Battle** | Offline Blue vs Red battle against AI, with a full ground war (tanks, AA, pillboxes, convoys, ships, bases). Pick the world and time of day. First team to 3000 points wins. |
-| **Multiplayer** | Play with friends. Modes: **Team Battle** (Blue vs Red plus AI), **Co-op vs AI** (everyone on Blue), **Free-for-all Dogfight**. The host picks the world and time of day. |
+| **Quick Battle** | Offline battle against AI. Pick the world, time of day, weather and one of four modes: **Battle** (Blue vs Red score race with a full ground war; first to 3000 wins), **Conquest**, **Last Pilot Standing** or **Bomber Escort** (see below). |
+| **Multiplayer** | Play with friends. Modes: **Team Battle** (Blue vs Red plus AI), **Co-op vs AI** (everyone on Blue), **Free-for-all Dogfight**, **Conquest**, **Last Pilot Standing** and **Bomber Escort**. The host picks the world, time of day and weather. |
+
+### Conquest, Last Pilot Standing, Bomber Escort
+
+- **Conquest.** Five fields: A (Blue Airfield), three forward airstrips B, C, D (neutral) and E (Red Airfield). Capture one by hover-landing inside its ring of beacons (press H, touch down gently, stay a few seconds; flipping an enemy field takes twice as long). Each owned field scores 4 points every 2 seconds, and kills score too. Enemy bots hover-land to capture as well, so you can catch them on the pad.
+- **Last Pilot Standing.** Every pilot for themselves, no respawns. A red wall marks the safe zone; it shrinks in stages (the dashed circle on the minimap is the next zone), and outside it your jet takes damage. Last one flying wins.
+- **Bomber Escort.** One side escorts a Titan to the enemy Command HQ, the other side has to shoot it down. Offline you can escort an AI Titan, fly the Titan yourself (one aircraft, no respawn) or intercept an enemy Titan. Most bots on the Titan's side fly as its escort. In multiplayer the Blue player flying a Titan is the VIP (otherwise the first Blue player gets one). Destroying the HQ wins it for the escort; the Titan going down, or the time running out (12 minutes offline, the room's time limit online), wins it for the defenders.
+
+## Weather, dynamic events and aces
+
+**Weather** (Auto, Severe or Clear, per match). Each world has its own: thunderstorms (Iron Island, Coral Archipelago, Highland Valley, Golden Savanna, Mire Bayou, Amber Woods, and an ion storm on Ubu Crystal Expanse), sandstorms on Scorched Mesa and dust storms on Crimson Wastes, blizzards on Frost Fjords and eruptions on Ember Caldera. On Auto, fronts build up, hold and clear during the match.
+- Thunderstorms bring rain, turbulence and lightning. A nearby strike **blanks every radar for a couple of seconds**: your lock drops, HUD markers and the minimap go dark, and enemy SAMs can't track you either. A direct hit damages aircraft.
+- Sandstorms and blizzards cut visibility to a couple of kilometres. Markers, radar lock range and AI eyesight all shrink with it, and crosswinds push you around.
+- Eruptions throw glowing lava bombs high across the sky. They hit aircraft in flight and explode on the ground.
+
+**Dynamic events** (Quick Battle and Conquest, Team/Co-op/Conquest multiplayer, optional in Free Flight) appear every minute or two:
+- *Enemy ace inbound*: a named rival joins the fight.
+- *Convoy escaping, 90 s to stop it*: armoured supply trucks run for the map edge.
+- *Downed pilot*: hover-land within 60 m of the orange smoke for 3 seconds before enemy trucks capture them.
+- *Bomber raid*: three bombers with escorts head for your base.
+
+**Enemy aces.** Three named rivals with their own paint and style:
+
+| Ace | Jet | Style |
+|---|---|---|
+| Major Volk "Kaiser" Reinholt | RX-8 Viper, crimson and black | Aggressive: hunts you directly, boosts into the merge, shrugs off hits |
+| Captain Ilsa "Hailstorm" Varga | VX-14 Vortex, ice white | Missile specialist: all-aspect heat-seekers from long range, keeps her distance, flares your rockets |
+| Lieutenant Sorin "Wisp" Kade | SX-21 Wraith, dark violet | Cloud ambusher: lurks inside clouds (which hide aircraft from radar and the HUD) and strikes when you look away |
+
+They taunt you over the radio, bail out when shot down and come back for revenge in later matches, a little sharper each time. Your record against each one is saved and shown under **Medals & Rivals**. Shooting one down earns a medal.
+
+## Missiles and countermeasures
+
+- **SAM sites** guard bases and airfields (and some Free Flight tank columns). The radar has to hold you for a few seconds before it launches: you hear a tracking tone, then **SAM LOCK**. SAM radar can't see you below 70 m above the ground.
+- **Enemy fighters** carry a pair of rear-aspect heat-seekers; Hailstorm carries ten.
+- When a missile is tracking you, the warning tone beeps faster as it closes, and the HUD marks each missile with a ring (or an edge arrow when it's behind you).
+- **Flares (N)** spoof heat-seekers and **chaff (M)** spoofs radar SAMs; each press drops a salvo of three. A hard break turn at the last moment can also make a missile overshoot, and a long chase runs it out of energy. Rearm (J) refills them. On touch screens the FLARE button drops both.
+
+## Kill streaks and combos
+
+- Kills within 4 seconds of each other chain into **DOUBLE KILL, TRIPLE KILL, QUAD KILL, RAMPAGE** with a score multiplier. Several kills from **one bomb or rocket** add their own multiplier.
+- Streak rewards (reset when you die): **3 kills** call an AI wingman who flies on your wing and attacks what you lock; **5** call an airstrike (a carpet of bombs on your locked target, or the nearest enemy ground target ahead); **7** give a 12-second **UBU overcharge** (homing, armour-piercing plasma rounds that use no ammo, faster fire, unlimited boost); every 5 kills after 10 brings another airstrike. In multiplayer, players other than the host get a repair and rearm instead of a wingman.
+- **Slow-motion kill-cam** on big kills (aces, bombers, HQs, ships, hangars, fuel depots, triple kills) in single player. Turn it off in Settings → Audio & HUD.
+
+## Medals
+
+31 medals, saved in the browser, under **Medals & Rivals** on the main menu. Among them: land on every world, kill a tank with guns only, cobra so a bandit overshoots you, shoot down a bomber with a bomb, triple kill, three kills with one bomb, 5- and 10-kill streaks, shoot down each ace, rescue downed pilots, stop a convoy, spoof a heat-seeker with flares and a SAM with chaff, destroy five SAM sites, kill during a thunderstorm or a white-out, capture a field, and win each new mode. A banner pops up in flight when you earn one, and the results screen lists the medals from that match.
 
 ## Worlds
 
@@ -83,7 +129,9 @@ These are the defaults. You can change every one in **Settings → Key bindings*
 | F | Evasive barrel roll with a sideways jink |
 | G | Immelmann U-turn: half loop and half roll, reversing direction |
 | Y | Cobra: nose snaps up while the jet keeps flying straight and bleeds speed |
-| H | Hover mode (VTOL, not on the Titan). W/S climb and descend, A/D strafe, ↑/↓ move forward and back, the nose follows your aim. Touch down gently to land. Press H again to fly normally |
+| H | Hover mode (VTOL, not on the Titan). W/S climb and descend, A/D strafe, ↑/↓ move forward and back, the nose follows your aim. Touch down gently to land (rescues, Conquest captures). Press H again to fly normally |
+| N | Flares (decoy heat-seeking missiles) |
+| M | Chaff (decoy radar-guided SAM missiles) |
 | 1–9 | Free Flight: switch jet in mid-air |
 | Esc | Pause |
 
@@ -106,7 +154,7 @@ Some embedded browsers (such as the Claude app's browser pane) block mouse captu
 | Left thumb (lower-left area) | Floating stick: it appears under your thumb. Push to turn the aim; further means faster. In hover mode it moves the jet |
 | Drag anywhere else | Aim precisely, like the mouse |
 | Bar on the far left | Throttle. Above the red line is afterburner. In hover mode it becomes a centre-sprung lift lever |
-| FIRE · RKT · BOMB · BOOST · BRAKE (right) | Weapons, boost and air brake. Hold to keep firing |
+| FIRE · RKT · BOMB · BOOST · BRAKE · FLARE (right) | Weapons, boost, air brake and countermeasures (FLARE drops flares and chaff, and lights up when a missile is tracking you). Hold to keep firing |
 | ROLL · U-TURN · COBRA · HOVER · JET (bottom) | Manoeuvres, hover mode, and switching jets in Free Flight |
 | BAIL · CAM · SCORE · ❚❚ (top right) | Bail out, camera, scoreboard (hold) and pause |
 
@@ -130,7 +178,7 @@ Settings are saved in the browser and apply immediately.
   - **Dynamic resolution** lowers the resolution automatically when the frame rate falls below your target (30–144 FPS). It never lowers it when the limit is your display's refresh rate.
 - **Controls.** Choose the steering mode: mouse aim, or a free-cursor joystick. You can also set mouse-aim sensitivity (default raised to 1.8), joystick turn speed and dead zone, field of view, invert-Y, mouse-wheel throttle and camera shake.
 - **Key bindings.** Every action has a primary and a secondary binding. Click a box and press a key, or click the box with the mouse button you want. A key moves away from whatever action used it before. **Reset to defaults** restores everything.
-- **Audio & HUD.** Master, engine and weapons volume, plus toggles for the minimap, kill feed, and pilot and target names.
+- **Audio & HUD.** Master, engine and weapons volume, plus toggles for the minimap, kill feed, pilot and target names, the slow-motion kill-cam and radio chatter (ace taunts, wingmen, command).
 
 ## Project layout
 
@@ -160,7 +208,13 @@ public/js/
   ui.js          menus, world pickers, settings tabs, key rebinding, lobby, results
   input.js       keyboard/mouse with rebindable actions, mouse capture or joystick steering
   touch.js       on-screen touch controls for phones and tablets (stick, drag aim, throttle, buttons)
-  audio.js       procedural engine, gun and explosion sounds
+  audio.js       procedural engine, gun, explosion, warning-tone and radio sounds
+  weather.js     storms with lightning and radar blackouts, sandstorms, blizzards, eruptions with lava bombs
+  events.js      dynamic events: ace inbound, escaping convoy, downed-pilot rescue, bomber raid
+  aces.js        named enemy aces: liveries, personalities, radio taunts, bailouts, saved rivalry records
+  streaks.js     multi-kill combos, streak rewards (wingman, airstrike, overcharge), slow-motion kill-cam
+  medals.js      achievements and medals (saved in the browser)
+  modes.js       Conquest, Last Pilot Standing and Bomber Escort
 ```
 
 ## How multiplayer works
@@ -169,3 +223,4 @@ public/js/
 - The room host simulates all AI aircraft and ground units, broadcasts them at 10 Hz, and keeps the score.
 - When you hit something, your browser sends a hit to whoever owns the target: the host for AI and ground units, or the other player for their aircraft. That owner applies the damage and announces the kill.
 - The server only manages lobbies and relays messages, so it uses very little CPU.
+- The host also runs the dynamic events, the aces, Conquest captures, the Last Pilot Standing count and the Bomber Escort outcome, and mirrors the event banner, radio calls and capture state to everyone. Each player's browser runs its own weather visuals (same kind and seed), but lightning and lava only damage aircraft that browser owns.

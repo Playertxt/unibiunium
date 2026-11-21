@@ -28,7 +28,8 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", "80
 
 # Message types that are simply forwarded to the other players in a room.
 RELAY = {"st", "ai", "hit", "kill", "ev", "score", "spawn", "fx", "dmg"}
-WORLD_IDS = ("island", "desert", "arctic", "archipelago", "highlands")
+WORLD_IDS = ("island", "desert", "arctic", "archipelago", "highlands", "volcanic", "savanna", "swamp", "autumn", "crystal", "mars")
+MODES = ("team", "coop", "ffa", "conquest", "lps", "escort")
 MAX_NAME = 18
 
 mimetypes.add_type("application/javascript", ".js")
@@ -112,7 +113,7 @@ async def broadcast(room, obj, exclude=None):
 def clean_settings(s):
     s = s or {}
     mode = s.get("mode", "team")
-    if mode not in ("team", "coop", "ffa"):
+    if mode not in MODES:
         mode = "team"
     return {
         "mode": mode,
@@ -122,6 +123,7 @@ def clean_settings(s):
         "scoreLimit": max(500, min(20000, int(s.get("scoreLimit", 3000)))),
         "timeOfDay": s.get("timeOfDay", "day") if s.get("timeOfDay") in ("day", "dusk", "dawn") else "day",
         "world": s.get("world") if s.get("world") in WORLD_IDS else "island",
+        "weather": s.get("weather") if s.get("weather") in ("auto", "severe", "clear") else "auto",
     }
 
 

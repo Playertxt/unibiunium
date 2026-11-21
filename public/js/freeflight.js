@@ -69,6 +69,9 @@ export class TankHunt {
     if (this.aa) {
       const s = this.landPoint(start.x, start.z, 60, 220);
       if (s) g.spawnGround('aa', 1, s.x, s.z);
+      // Every other column brings a SAM launcher too.
+      const m = this.wave % 2 === 0 && this.landPoint(start.x, start.z, 150, 400);
+      if (m) g.spawnGround('sam', 1, m.x, m.z);
     }
     this.wave++;
   }

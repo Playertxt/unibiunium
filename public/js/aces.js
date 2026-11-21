@@ -158,6 +158,7 @@ export class AceDirector {
   // Bailout: the canopy blows and a parachute drifts down where the jet was hit.
   chute(ac) {
     const g = this.game;
+    if (!ac.pos) return;
     const grp = new THREE.Group();
     const accent = ACES[ac.aceId] ? ACES[ac.aceId].paint.accent : 0xffffff;
     const canopy = new THREE.Mesh(new THREE.SphereGeometry(4, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: accent, roughness: 0.8, side: THREE.DoubleSide }));
@@ -168,7 +169,8 @@ export class AceDirector {
     grp.add(canopy, lines, body);
     grp.position.copy(ac.pos).add(new THREE.Vector3(0, 6, 0));
     g.scene.add(grp);
-    this.chutes.push({ grp, vel: new THREE.Vector3(ac.vel.x * 0.02, -5.5, ac.vel.z * 0.02), t: 0 });
+    const v = ac.vel || new THREE.Vector3();
+    this.chutes.push({ grp, vel: new THREE.Vector3(v.x * 0.02, -5.5, v.z * 0.02), t: 0 });
   }
 
   update(dt) {

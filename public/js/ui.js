@@ -2,16 +2,24 @@
 import { AIRCRAFT, AIRCRAFT_ORDER, Settings, TEAM_NAMES, ACTIONS, TIER_NAMES, keyName, clamp, screenDpr, IS_MOBILE } from './config.js';
 import { MISSIONS, Progress } from './campaign.js';
 import { WORLDS, WORLD_ORDER, worldDef } from './worlds.js';
+import { MEDALS, Medals } from './medals.js';
+import { ACES, ACE_ORDER, AceRecords } from './aces.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // Japanese + English label pair, as used on buttons and headings.
 const J = (jp, en) => `<span class="jp">${esc(jp)}</span><span class="en">${esc(en)}</span>`;
 const cap = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
-const SCREENS = ['main', 'campaign', 'quick', 'free', 'hangar', 'mp', 'lobby', 'settings', 'controls', 'pause', 'results', 'brief'];
+const SCREENS = ['main', 'campaign', 'quick', 'free', 'hangar', 'medals', 'mp', 'lobby', 'settings', 'controls', 'pause', 'results', 'brief'];
+const QUICK_DESC = {
+  battle: 'Blue vs Red score race with a full ground war. First team to 3000 points wins.',
+  conquest: 'Capture airfields and forward airstrips by hover-landing inside their beacon rings (H, then touch down gently). Owned fields tick points.',
+  lps: 'Every pilot for themselves, no respawns. The safe zone shrinks; stay inside the red wall. "Enemy aircraft" sets how many rivals you face.',
+  escort: 'One side escorts a Titan to bomb the enemy Command HQ; the other side has to shoot it down. Pick your side.',
+};
 const RESULT_KANJI = { 'Victory': '勝利', 'Defeat': '敗北', 'Draw': '引分', 'Mission Accomplished': '任務完了', 'Mission Failed': '任務失敗',
   'Campaign Complete!': '完遂', 'You win!': '勝利', 'Match over': '終戦' };
-const MODES = { team: 'Team Battle', coop: 'Co-op vs AI', ffa: 'Free-for-all' };
+const MODES = { team: 'Team Battle', coop: 'Co-op vs AI', ffa: 'Free-for-all', conquest: 'Conquest', lps: 'Last Pilot Standing', escort: 'Bomber Escort' };
 
 // ---------- settings schema ----------
 const pct = (v) => `${Math.round(v * 100)}%`;
@@ -73,6 +81,8 @@ function settingsSchema() {
       { key: 'minimap', label: 'Show minimap', type: 'check' },
       { key: 'killfeed', label: 'Show kill feed', type: 'check' },
       { key: 'names', label: 'Show pilot and target names', type: 'check' },
+      { key: 'killcam', label: 'Slow-motion kill-cam', type: 'check', desc: 'Big kills (aces, bombers, HQs, triple kills) replay in slow motion. Single player only.' },
+      { key: 'radio', label: 'Radio chatter', type: 'check', desc: 'Ace taunts, wingman calls and command messages.' },
     ],
   };
 }
@@ -125,7 +135,7 @@ export class UI {
     const select = (b) => { items.forEach((x) => x.classList.toggle('sel', x === b)); };
     items.forEach((b) => b.addEventListener('mouseenter', () => select(b)));
     addEventListener('keydown', (e) => {
-      if (e.code === 'Escape' && ['campaign', 'quick', 'free', 'hangar', 'mp', 'settings', 'controls'].includes(this.current) && !this.capture) {
+      if (e.code === 'Escape' && ['campaign', 'quick', 'free', 'hangar', 'medals', 'mp', 'settings', 'controls'].includes(this.current) && !this.capture) {
         this.click(); this.back(); return;
       }
       if (this.current !== 'main' || document.activeElement?.tagName === 'INPUT') return;
@@ -396,10 +406,37 @@ export class UI {
 
   // ---------- quick battle ----------
   bindQuick() {
+    const sync = () => {
+      const m = $('quick-mode').value;
+      $('quick-role-wrap').style.display = m === 'escort' ? '' : 'none';
+      $('quick-allies').disabled = m === 'lps';
+      $('quick-mode-desc').textContent = QUICK_DESC[m] || '';
+    };
+    $('quick-mode').addEventListener('change', sync);
+    sync();
     $('quick-start').addEventListener('click', () => {
       this.click();
-      this.app.startQuick({ enemies: +$('quick-enemies').value, allies: +$('quick-allies').value, timeOfDay: $('quick-time').value, plane: this.quickPlane, world: this.quickWorld });
+      this.app.startQuick({ enemies: +$('quick-enemies').value, allies: +$('quick-allies').value, timeOfDay: $('quick-time').value, plane: this.quickPlane, world: this.quickWorld,
+        mode: $('quick-mode').value, role: $('quick-role').value, weather: $('quick-weather').value, events: $('quick-events').checked });
     });
+  }
+
+  // ---------- medals & rivals ----------
+  on_medals() {
+    $('medal-summary').textContent = `${Medals.unlockedCount()} of ${Medals.total()} medals earned · ${Medals.worlds().length}/${WORLD_ORDER.length} worlds landed on`;
+    AceRecords.load();
+    $('ace-list').innerHTML = ACE_ORDER.map((id) => {
+      const a = ACES[id], r = AceRecords.get(id);
+      const status = !r.met ? 'Not yet encountered' : r.last === 'bailed' ? 'Bailed out last time: wants revenge' : 'Still flying';
+      return `<div class="ace" style="--ace:${a.color}"><span class="akanji">${esc(a.jp)}</span><span class="astyle">${esc(a.style)} · ${esc((AIRCRAFT[a.plane] || {}).name || '')}</span><b>${esc(a.full)}</b>
+        <div class="adesc">${esc(a.desc)}</div><div class="arec">You ${r.losses} – ${r.wins} ${esc(a.name)} · met ${r.met}×</div><div class="adesc">${esc(status)}</div></div>`;
+    }).join('');
+    $('medal-list').innerHTML = MEDALS.map(([id, name, jp, desc, prog]) => {
+      const got = Medals.has(id);
+      const p = prog ? prog() : null;
+      const bar = p && !got ? `<div class="mp"><i style="width:${Math.round(p[0] / p[1] * 100)}%"></i></div><div class="md">${p[0]} / ${p[1]}</div>` : '';
+      return `<div class="medal${got ? ' got' : ''}"><span class="mk">${esc(jp.slice(0, 1))}</span><div><b>${esc(name)}</b><div class="md">${esc(desc)}</div>${bar}</div></div>`;
+    }).join('');
   }
   on_quick() {
     this.worldGrid($('quick-worlds'), this.quickWorld, (id) => { this.quickWorld = id; Settings.data.world = id; Settings.save(); });
@@ -411,7 +448,8 @@ export class UI {
     $('free-start').addEventListener('click', () => {
       this.click();
       this.app.startFree({ world: this.freeWorld, plane: this.freePlane, timeOfDay: $('free-time').value, tanks: +$('free-tanks').value,
-        aa: $('free-aa').checked, enemies: +$('free-enemies').value, ammo: $('free-ammo').checked, god: $('free-god').checked });
+        aa: $('free-aa').checked, enemies: +$('free-enemies').value, ammo: $('free-ammo').checked, god: $('free-god').checked,
+        weather: $('free-weather').value, events: $('free-events').checked });
     });
   }
   on_free() {
@@ -432,7 +470,7 @@ export class UI {
     });
     $('join-btn').addEventListener('click', () => { this.click(); const c = $('join-code').value.trim().toUpperCase(); if (c) net.send({ t: 'join', code: c }); });
     $('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('join-btn').click(); });
-    for (const id of ['room-mode', 'room-world', 'room-tod', 'room-bots', 'room-time', 'room-score', 'room-max']) {
+    for (const id of ['room-mode', 'room-world', 'room-weather', 'room-tod', 'room-bots', 'room-time', 'room-score', 'room-max']) {
       $(id).addEventListener('change', () => { if (net.inRoom && net.isHost && this.current === 'lobby') net.send({ t: 'settings', settings: this.roomSettings() }); });
     }
     net.on('rooms', (m) => this.renderRooms(m.rooms));
@@ -457,7 +495,7 @@ export class UI {
   }
 
   roomSettings() {
-    return { mode: $('room-mode').value, world: $('room-world').value, timeOfDay: $('room-tod').value, bots: +$('room-bots').value,
+    return { mode: $('room-mode').value, world: $('room-world').value, weather: $('room-weather').value, timeOfDay: $('room-tod').value, bots: +$('room-bots').value,
       timeLimit: +$('room-time').value, scoreLimit: +$('room-score').value, maxPlayers: +$('room-max').value };
   }
 
@@ -501,14 +539,17 @@ export class UI {
     const net = this.app.net;
     $('lobby-name').textContent = m.name;
     $('lobby-code').textContent = m.code;
-    const modes = { team: 'Team Battle — Blue vs Red, AI ground war, score race', coop: 'Co-op — all players on Blue vs AI Red Coalition', ffa: 'Free-for-all dogfight — everyone vs everyone' };
+    const modes = { team: 'Team Battle — Blue vs Red, AI ground war, score race', coop: 'Co-op — all players on Blue vs AI Red Coalition', ffa: 'Free-for-all dogfight — everyone vs everyone',
+      conquest: 'Conquest — capture airfields by hover-landing on them', lps: 'Last Pilot Standing — no respawns, shrinking safe zone',
+      escort: 'Bomber Escort — Blue escorts a Titan (a Blue player flying the Titan is the VIP), Red has to stop it' };
     const s = m.settings;
     $('lobby-mode').textContent = `${modes[s.mode]} · ${worldDef(s.world).name}, ${cap(s.timeOfDay || 'day')} · ${s.bots} AI bots · ${s.timeLimit} min · ${s.scoreLimit} pts${m.state === 'playing' ? ' · battle in progress' : ''}`;
     for (const t of [0, 1]) {
-      $(`lobby-team${t}`).innerHTML = m.players.filter((p) => (s.mode === 'ffa' ? t === 0 : p.team === t)).map((p) =>
+      const solo = s.mode === 'ffa' || s.mode === 'lps';
+      $(`lobby-team${t}`).innerHTML = m.players.filter((p) => (solo ? t === 0 : p.team === t)).map((p) =>
         `<li><span>${esc(p.name)}${p.id === m.host ? '<span class="host">HOST</span>' : ''}${p.id === net.id ? ' (you)' : ''}</span><span><span class="lplane">${esc((AIRCRAFT[p.plane] || {}).name || '')}</span> ${p.ready ? '<span class="ready">READY</span>' : ''}</span></li>`).join('');
     }
-    document.querySelectorAll('[data-team]').forEach((b) => { b.style.display = s.mode === 'team' ? '' : 'none'; });
+    document.querySelectorAll('[data-team]').forEach((b) => { b.style.display = ['team', 'conquest', 'escort'].includes(s.mode) ? '' : 'none'; });
     const me = m.players.find((p) => p.id === net.id);
     if (me && !this.lobbyPlaneSet) { this.lobbyPlaneSet = true; if (me.plane !== Settings.data.plane) net.send({ t: 'lobby', plane: Settings.data.plane }); }
     this.planeGrid($('lobby-planes'), null, me ? me.plane : Settings.data.plane, (k) => { Settings.data.plane = k; Settings.save(); net.send({ t: 'lobby', plane: k }); });
@@ -519,7 +560,7 @@ export class UI {
     $('lobby-start').disabled = m.state === 'playing';
     $('lobby-wait').style.display = host ? 'none' : '';
     if (host) {
-      $('room-mode').value = s.mode; $('room-world').value = s.world || 'island'; $('room-tod').value = s.timeOfDay || 'day';
+      $('room-mode').value = s.mode; $('room-world').value = s.world || 'island'; $('room-tod').value = s.timeOfDay || 'day'; $('room-weather').value = s.weather || 'auto';
       $('room-bots').value = s.bots; $('room-time').value = s.timeLimit; $('room-score').value = s.scoreLimit; $('room-max').value = s.maxPlayers;
     }
   }

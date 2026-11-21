@@ -253,7 +253,7 @@ export class PilotAI {
     this.threatT = 0.4;
     for (const m of g.weapons.missiles) {
       if (m.target !== a || m.pos.distanceToSquared(a.pos) > 1500 * 1500) continue;
-      if (Math.random() < 0.3 + this.skill * 0.55) a.dispense(m.seeker === 'ir' ? 'flare' : 'chaff');
+      if (a.vip || Math.random() < 0.3 + this.skill * 0.55) a.dispense(m.seeker === 'ir' ? 'flare' : 'chaff');
       this.evadeTimer = Math.max(this.evadeTimer, 1.5);
       return;
     }
